@@ -6,6 +6,7 @@
 #include "driver/gpio.h"
 #include "driver/adc.h"
 #include "esp_adc_cal.h"
+#include "driver/ledc.h"
 
 #define log "log"
 #define led 2
@@ -131,7 +132,7 @@ void digitalInputAndOutput()
     }
 }
 
-void analogInput()
+void analogInputWithCalibraton()
 {
     // #include "driver/adc.h"
     // #include "esp_adc_cal.h"
@@ -192,6 +193,7 @@ void analogInput()
     {
         // Getting RAW adc value
         int adcValue = adc1_get_raw(ADC1_CHANNEL_4);
+        ESP_LOGI(log, "Raw Value: %d", adcValue);
 
         // Converting adc value to voltage
         voltage = esp_adc_cal_raw_to_voltage(adcValue, &adc1_chars);
@@ -199,10 +201,82 @@ void analogInput()
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
+
+void analogInputWithoutCalibration()
+{
+    // #include <stdio.h>
+    // #include <stdlib.h>
+    // #include "freertos/FreeRTOS.h"
+    // #include "freertos/task.h"
+    // #include "driver/adc.h"
+
+    adc1_channel_t adc_channel = ADC1_CHANNEL_4;
+    adc1_config_width(ADC_WIDTH_BIT_12);
+    adc1_config_channel_atten(adc_channel, ADC_ATTEN_DB_11);
+    while (1)
+    {
+        int value = adc1_get_raw(adc_channel);
+        ESP_LOGI(log, "Raw Value: %d", value);
+
+        double voltage = value * 0.0008057;
+        ESP_LOGI(log, "Voltage: %lf", voltage);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+}
+
+void ledPWM()
+{
+    /*
+#include <stdio.h>
+#include <stdlib.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "driver/adc.h"
+#include "driver/ledc.h"
+   */
+    adc1_channel_t adcChannel = ADC1_CHANNEL_4;
+    adc1_config_width(ADC_WIDTH_BIT_10);
+    adc1_config_channel_atten(adcChannel, ADC_ATTEN_DB_11);
+
+    const int ledGPIO = 2;
+    ledc_channel_config_t ledcChannel;
+    ledc_timer_config_t ledcTimer = {
+        .duty_resolution = LEDC_TIMER_10_BIT,
+        .freq_hz = 1000,
+        .speed_mode = LEDC_HIGH_SPEED_MODE,
+        .timer_num = LEDC_TIMER_0,
+        .clk_cfg = LEDC_AUTO_CLK,
+    };
+    ledc_timer_config(&ledcTimer);
+    ledcChannel.channel = LEDC_CHANNEL_0;
+    ledcChannel.duty = 0;
+    ledcChannel.gpio_num = ledGPIO;
+    ledcChannel.speed_mode = LEDC_HIGH_SPEED_MODE;
+    ledcChannel.hpoint = 0;
+    ledcChannel.timer_sel = LEDC_TIMER_0;
+    ledc_channel_config(&ledcChannel);
+
+    while (1)
+    {
+        int adcValue = 0;
+        for (int i = 0; i < 30; i++)
+        {
+            adcValue += adc1_get_raw(adcChannel);
+        }
+        adcValue /= 30;
+        ESP_LOGI(log, "Average Value: %d", adcValue);
+
+        ledc_set_duty(ledcChannel.speed_mode, ledcChannel.channel, adcValue);
+        ledc_update_duty(ledcChannel.speed_mode, ledcChannel.channel);
+        vTaskDelay(500 / portTICK_PERIOD_MS);
+    }
+}
 void app_main(void)
 {
     // espLOG();
     // ledBlink5Times();
     // digitalInputAndOutput();
-    analogInput();
+    // analogInputWithCalibraton();
+    // analogInputWithoutCalibration();
+    ledPWM();
 }
